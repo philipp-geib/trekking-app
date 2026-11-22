@@ -1,0 +1,101 @@
+{
+  "expo": {
+    "name": "TREKKING",
+    "slug": "trekking-ios",
+    "scheme": "trekking",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#438482",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#438482"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "bundleIdentifier": "de.philippgeib.trekking.app",
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "de",
+        "UIBackgroundModes": [
+          "location",
+          "audio"
+        ],
+        "WKAppBoundDomains": [
+          "trek-king.pages.dev"
+        ],
+        "NSCameraUsageDescription": "Mit der Kamera hältst du Fotos unterwegs fest.",
+        "NSPhotoLibraryUsageDescription": "TREKKING braucht Zugriff auf deine Fotos, damit du Bilder zu Touren und deinem Profil hinzufügen kannst.",
+        "NSPhotoLibraryAddUsageDescription": "TREKKING sichert Fotos deiner Touren in deiner Mediathek.",
+        "NSMotionUsageDescription": "Der Kompass zeigt, wohin du schaust."
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TREKKING zeigt deinen Standort auf der Karte und im Kompass.",
+          "locationAlwaysAndWhenInUsePermission": "Während einer Tour zeichnet TREKKING auch bei gesperrtem Bildschirm weiter auf und sagt Abzweigungen an.",
+          "locationAlwaysPermission": "Während einer Tour zeichnet TREKKING auch bei gesperrtem Bildschirm weiter auf.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "enableBackgroundPlayback": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "TREKKING braucht Zugriff auf deine Fotos, damit du Bilder zu Touren und deinem Profil hinzufügen kannst.",
+          "savePhotosPermission": "TREKKING sichert Fotos deiner Touren in deiner Mediathek.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      "expo-web-browser",
+      "expo-status-bar",
+      "expo-live-activity",
+      "./plugins/withAppIcons"
+    ],
+    "android": {
+      "package": "de.philippgeib.trekking.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/splash-icon.png",
+        "backgroundColor": "#438482"
+      },
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
+    }
+  }
+}

@@ -1,0 +1,65 @@
+name: iPhone-App (SideStore)
+# Öffentliches Repo → Mac-Runner kostenlos. Baut die unsignierte IPA und legt sie in den Release „iphone“.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ios-shell/package-lock.json
+      - name: Xcode wählen (Expo 58 braucht ≥ 26.4)
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+      - name: Abhängigkeiten
+        working-directory: ios-shell
+        run: npm ci
+      - name: iOS-Projekt erzeugen
+        working-directory: ios-shell
+        env:
+          CI: 1
+        run: npx expo prebuild -p ios --clean
+      - name: Bauen (ohne Signatur)
+        working-directory: ios-shell/ios
+        run: |
+          WS=$(ls -d *.xcworkspace | head -1)
+          LOG="$RUNNER_TEMP/xcodebuild.log"
+          if ! xcodebuild -workspace "$WS" -scheme "${WS%.xcworkspace}" -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/app.xcarchive" archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > "$LOG" 2>&1; then
+            echo "::group::Fehler"; grep -nE "(error|Error|ERROR)[: ]|FAILED|failed with" "$LOG" | grep -v "^.*-Werror" | head -80; echo "::endgroup::"
+            tail -40 "$LOG"
+            exit 1
+          fi
+          tail -3 "$LOG"
+      - name: IPA packen
+        run: |
+          APP=$(ls -d "$RUNNER_TEMP"/app.xcarchive/Products/Applications/*.app | head -1)
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry TREKKING.ipa Payload)
+          ls -lh "$RUNNER_TEMP/ipa/TREKKING.ipa"
+      - name: Bau-Protokoll bei Fehler
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ${{ runner.temp }}/xcodebuild.log
+      - name: Release „iphone“ aktualisieren
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view iphone >/dev/null 2>&1 || gh release create iphone --title "iPhone-App (SideStore)" --prerelease \
+            --notes "Unsignierte TREKKING.ipa – per iloader/SideStore installieren."
+          gh release upload iphone "$RUNNER_TEMP/ipa/TREKKING.ipa" --clobber

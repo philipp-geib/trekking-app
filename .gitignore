@@ -1,0 +1,6 @@
+node_modules/
+.expo/
+/ios-shell/ios/
+/ios-shell/android/
+*.ipa
+*.apk

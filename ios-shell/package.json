@@ -1,0 +1,31 @@
+{
+  "name": "trekking-ios",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "prebuild": "expo prebuild -p ios --clean"
+  },
+  "dependencies": {
+    "expo": "~58.0.25",
+    "expo-audio": "~58.0.12",
+    "expo-constants": "~58.0.16",
+    "expo-file-system": "~58.0.14",
+    "expo-live-activity": "0.4.2",
+    "expo-location": "~58.0.22",
+    "expo-media-library": "~58.0.14",
+    "expo-speech": "~58.0.4",
+    "expo-status-bar": "~58.0.5",
+    "expo-task-manager": "~58.0.14",
+    "expo-web-browser": "~58.1.0",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-webview": "14.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
+}
