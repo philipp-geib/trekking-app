@@ -36,6 +36,20 @@ Alle 7 Tage muss die App in SideStore erneuert werden („7 DAYS“ bzw. „Refr
 Kurzbefehl-Automation). TREKKING erinnert 2 Tage vorher. Abgelaufen = App öffnet nicht, Daten bleiben.
 Nach iOS-Update/Zurücksetzen kann die Pairing-Datei ungültig werden → in iloader „Manage Pairing File“ neu ablegen.
 
+### Alternative: AltStore Classic (erneuert automatisch, wenn der Mac läuft)
+
+Stand 22.11.2026: AltServer hat selbst einen bekannten Apple-Anmeldefehler (AltStore arbeitet mit SideStore an einer Lösung) – erst nach einem AltServer-Update probieren, nicht wiederholt anmelden (Apple sperrt sonst kurz das Konto).
+1. AltServer von <https://altstore.io> laden → Programme → öffnen (Symbol oben in der Menüleiste). AltServer → „Beim Anmelden starten“ an.
+2. iPhone per Kabel, entsperren, „Vertrauen“. Im Finder das iPhone wählen → „Dieses iPhone bei bestehender WLAN-Verbindung anzeigen“ an.
+3. Menüleiste → AltServer → **Install AltStore** → iPhone → Apple-ID + Passwort (fragt AltServer nach dem Mail-Plug-in: der Anleitung im Fenster folgen).
+4. iPhone: Einstellungen → Allgemein → VPN und Geräteverwaltung → eigene Apple-ID → vertrauen. Entwicklermodus muss an sein.
+5. TREKKING.ipa in Safari laden → AltStore → **My Apps** → **+** → Datei wählen.
+   Erscheint TREKKING danach doppelt: vorher kurz warten (Abgleich), alte löschen, in der neuen anmelden – Touren kommen aus dem Konto.
+6. Höchstens 3 selbst installierte Apps je kostenloser Apple-ID → SideStore löschen, wenn es nicht mehr gebraucht wird.
+
+Automatisch erneuert wird, solange der Mac **wach** ist, AltServer läuft und iPhone + Mac im **selben WLAN** sind (Hintergrundaktualisierung für AltStore an).
+Sonst: AltStore → My Apps → „Refresh All“, wenn der Mac in der Nähe ist.
+
 **Während der Tour, Handy gesperrt:** Aufzeichnung und Ansagen laufen weiter. Auf dem Sperrbildschirm steht eine
 Live-Aktivität (nächste Abbiegung mit Pfeil, Reststrecke, Balken; antippen = Navigation). Fehlt sie: Einstellungen →
 TREKKING → **Live-Aktivitäten** an. Die App enthält dafür eine Erweiterung – SideStore/iloader brauchen damit 2 der
@@ -49,6 +63,8 @@ des Macs (klappt), SideStore holt sie von einem fremden Anisette-Server – ist 
 geblockt, wird die Geräte-Anmeldung nicht fertig. Liegt weder am Passwort noch an TREKKING.
 
 Was helfen kann:
+- **Meldung 401 (Nutzerbericht Nov. 2026):** LocalDevVPN an → SideStore-Einstellungen: „On-Device Anisette“ aus, Anisette-Server „SideStore (New)“ mit
+  automatischer Rotation aus → „Reset adi.pb“ ohne „keep headers“ → SideStore ganz schließen, neu öffnen, anmelden.
 - Ein paarmal erneut versuchen; SideStore ganz schließen, LocalDevVPN verbinden, wieder öffnen.
 - SideStore → Settings → **Anisette Server** → einen anderen wählen (alle durchprobieren).
 - Falls vorhanden: Settings → **„Reset adi.pb“**, dann SideStore neu starten.

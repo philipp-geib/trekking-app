@@ -1,7 +1,10 @@
 // Mit SideStore installiert (kostenlose Apple-ID) läuft die App nach 7 Tagen ab. Das Ablaufdatum steht im eingebetteten
-// Profil (embedded.mobileprovision, XML-Teil im signierten Block). 2 Tage vorher Hinweis mit Knopf zu SideStore.
+// Profil (embedded.mobileprovision, XML-Teil im signierten Block). 2 Tage vorher Hinweis mit Knopf zu SideStore, dazu
+// Mitteilungen 1 Tag und 1 Stunde vor Ablauf (auch bei geschlossener App; Schalter „App erneuern“ in den Mitteilungs-Einstellungen
+// der Seite → {type:'expiryNotes', on}). Nach jedem Start neu geplant – ein Refresh in SideStore verschiebt sie also beim nächsten Öffnen.
 import { File, Paths } from 'expo-file-system';
 import { Alert, Linking } from 'react-native';
+import { scheduleNotes } from '../modules/local-notes';
 
 export function expiryDate(): Date | null {
   try {
@@ -36,5 +39,43 @@ export function checkExpiry() {
       { text: 'Später', style: 'cancel' },
       { text: 'SideStore öffnen', onPress: () => void Linking.openURL('sidestore://').catch(() => {}) },
     ],
+  );
+}
+
+const prefFile = new File(Paths.document, 'expiry-notes.json');
+const notesOn = () => {
+  try {
+    return !prefFile.exists || (JSON.parse(prefFile.textSync()) as { on?: boolean }).on !== false;
+  } catch {
+    return true;
+  }
+};
+
+/** Schalter von der Seite merken und neu planen. */
+export function setExpiryNotes(on: boolean) {
+  try {
+    if (notesOn() !== on) prefFile.write(JSON.stringify({ on }));
+  } catch {}
+  planExpiryNotes();
+}
+
+let planned = '';
+/** Mitteilungen 1 Tag und 1 Stunde vor Ablauf planen (aus = keine, App Store/kein Profil = keine). */
+export function planExpiryNotes() {
+  const d = expiryDate();
+  const on = notesOn();
+  const key = `${d?.getTime() ?? 0}:${on}`;
+  if (key === planned) return;
+  planned = key;
+  const t = d?.getTime() ?? 0;
+  const body = 'Noch nicht erneuert? In SideStore „Refresh All“ antippen – deine Daten bleiben.';
+  void scheduleNotes(
+    'expiry-',
+    on && t
+      ? [
+          { id: 'day', title: 'TREKKING läuft morgen ab', body, at: t - 86_400_000 },
+          { id: 'hour', title: 'TREKKING läuft in 1 Stunde ab', body, at: t - 3_600_000 },
+        ]
+      : [],
   );
 }

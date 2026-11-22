@@ -4,7 +4,7 @@
 import { File, Paths } from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { guideStep } from './guide';
 
 export const TASK = 'trekking-tour-location';
@@ -82,8 +82,12 @@ export async function foregroundPermission(): Promise<Permission> {
 /** Aufzeichnung im Hintergrund an. Ohne „Immer“-Erlaubnis false (dann nur bei offenem Bildschirm). */
 export async function startTour(): Promise<boolean> {
   if ((await foregroundPermission()) !== 'granted') return false;
-  const bg = await Location.requestBackgroundPermissionsAsync().catch(() => ({ granted: false }));
-  if (!bg.granted) return false;
+  // Android: Vordergrund-Dienst (unten) reicht mit „Bei Nutzung der App“ – „Immer zulassen“ braucht es dort nicht
+  // (und Android 11+ schickt dafür nur in die Einstellungen). iPhone: ohne „Immer“ stoppt die Aufzeichnung beim Sperren.
+  if (Platform.OS === 'ios') {
+    const bg = await Location.requestBackgroundPermissionsAsync().catch(() => ({ granted: false }));
+    if (!bg.granted) return false;
+  }
   if (await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false)) return true;
   await Location.startLocationUpdatesAsync(TASK, {
     accuracy: Location.Accuracy.BestForNavigation,

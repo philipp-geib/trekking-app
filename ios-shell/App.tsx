@@ -2,6 +2,7 @@
 // Sprachansagen bei gesperrtem Bildschirm, Kamera-Fotos in die Mediathek (src/photos.ts), Google-Anmeldung im Browser-Fenster, Hinweis vor dem Ablauf (nur iPhone/SideStore).
 // Android: randlos – Ränder gehen per Brücke an die Seite (lib/webSafeArea.ts), Zurück-Taste = Zurück in der WebView,
 // während einer Tour über dem Sperrbildschirm (modules/lock-screen). iPhone: App-Symbol nach Farbe + Darstellung (modules/app-icon).
+import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
@@ -14,7 +15,7 @@ import type { ShouldStartLoadRequest, WebViewOpenWindowEvent } from 'react-nativ
 // Die Typen der WebView schneiden iOS/Android/Windows-Props zu „never“ – deshalb locker typisiert.
 const Web = WebView as unknown as React.ComponentType<Record<string, unknown> & { ref?: React.Ref<WebView> }>;
 import { bridge } from './src/bridge';
-import { checkExpiry } from './src/expiry';
+import { checkExpiry, planExpiryNotes, setExpiryNotes } from './src/expiry';
 import { deviceVoices, hush, sayFromPage, setNav, type NavMsg } from './src/guide';
 import { savePhoto } from './src/photos';
 import { currentPosition, setDeliver, setWatch, startTour, stopTour, takeBuffer, type Loc } from './src/location';
@@ -22,6 +23,8 @@ import { setAppIcon } from './modules/app-icon';
 import { showWhenLocked } from './modules/lock-screen';
 
 const HOME = 'https://trek-king.pages.dev';
+/** Build-Nummer aus app.json (beim Bauen eingebettet) – höher als in /app/version.json = aktuell */
+const BUILD = Number(Platform.OS === 'android' ? Constants.expoConfig?.android?.versionCode : Constants.expoConfig?.ios?.buildNumber) || 0;
 const TEAL = '#438482';
 /** Hintergrund bis die Seite da ist = Farbe ihres Startbilds (eigene Farbe/Nacht), von der Seite gemeldet und gemerkt */
 const lookFile = new File(Paths.document, 'look.json');
@@ -81,7 +84,7 @@ export default function App() {
   const [failed, setFailed] = useState(false);
   const [start, setStart] = useState<string | null>(null);
   const canBack = useRef(false);
-  const BRIDGE = useMemo(() => bridge(Platform.OS, insets()), []);
+  const BRIDGE = useMemo(() => bridge(Platform.OS, insets(), BUILD), []);
 
   // Android: Zurück-Taste geht in der Seite zurück, erst auf der Startseite schließt sie die App
   useEffect(() => {
@@ -121,10 +124,12 @@ export default function App() {
   useEffect(() => {
     setDeliver(sendGeo);
     checkExpiry();
+    planExpiryNotes();
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') {
         flush();
         checkExpiry();
+        planExpiryNotes();
       }
       updateWatch();
     });
@@ -156,9 +161,9 @@ export default function App() {
         background.current = await startTour().catch(() => false);
         if (!background.current)
           Alert.alert(
-            'Standort „Immer“ erlauben',
+            ANDROID ? 'Standort erlauben' : 'Standort „Immer“ erlauben',
             ANDROID
-              ? 'Damit TREKKING auch bei gesperrtem Bildschirm aufzeichnet und ansagt: Berechtigungen → Standort → „Immer zulassen“.'
+              ? 'Damit TREKKING deine Tour aufzeichnet (auch bei gesperrtem Bildschirm): Berechtigungen → Standort → „Nur bei Nutzung der App zulassen“ oder „Immer zulassen“.'
               : 'Damit TREKKING auch bei gesperrtem Bildschirm aufzeichnet und ansagt: Einstellungen → TREKKING → Standort → „Immer“.',
             [
               { text: 'Später', style: 'cancel' },
@@ -220,6 +225,9 @@ export default function App() {
           break;
         case 'look':
           if (typeof m.bg === 'string') saveBg(m.bg);
+          break;
+        case 'expiryNotes':
+          setExpiryNotes(m.on !== false);
           break;
         case 'icon':
           if (typeof m.name === 'string' || m.name === null) setAppIcon(m.name as string | null);

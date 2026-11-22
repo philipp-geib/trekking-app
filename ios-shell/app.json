@@ -20,7 +20,7 @@
     "ios": {
       "bundleIdentifier": "de.philippgeib.trekking.app",
       "supportsTablet": false,
-      "buildNumber": "1",
+      "buildNumber": "2",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -72,11 +72,12 @@
       "expo-web-browser",
       "expo-status-bar",
       "expo-live-activity",
-      "./plugins/withAppIcons"
+      "./plugins/withAppIcons",
+      "./plugins/withNoForceDark"
     ],
     "android": {
       "package": "de.philippgeib.trekking.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/splash-icon.png",
         "backgroundColor": "#438482"
