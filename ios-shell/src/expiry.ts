@@ -5,6 +5,7 @@
 import { File, Paths } from 'expo-file-system';
 import { Alert, Linking } from 'react-native';
 import { scheduleNotes } from '../modules/local-notes';
+import { isEn } from './lang';
 
 export function expiryDate(): Date | null {
   try {
@@ -31,13 +32,16 @@ export function checkExpiry() {
   const days = (d.getTime() - Date.now()) / 86_400_000;
   if (days > 2) return;
   warned = true;
-  const when = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const en = isEn();
+  const when = d.toLocaleDateString(en ? 'en-GB' : 'de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
   Alert.alert(
-    'TREKKING bald erneuern',
-    days <= 0 ? 'Die App ist abgelaufen. Bitte in SideStore erneuern.' : `Die App läuft am ${when} ab. In SideStore „Refresh“ antippen – deine Daten bleiben erhalten.`,
+    en ? 'Renew TREKKING soon' : 'TREKKING bald erneuern',
+    en
+      ? days <= 0 ? 'The app has expired. Please renew it in SideStore.' : `The app expires on ${when}. Tap “Refresh” in SideStore – your data stays.`
+      : days <= 0 ? 'Die App ist abgelaufen. Bitte in SideStore erneuern.' : `Die App läuft am ${when} ab. In SideStore „Refresh“ antippen – deine Daten bleiben erhalten.`,
     [
-      { text: 'Später', style: 'cancel' },
-      { text: 'SideStore öffnen', onPress: () => void Linking.openURL('sidestore://').catch(() => {}) },
+      { text: en ? 'Later' : 'Später', style: 'cancel' },
+      { text: en ? 'Open SideStore' : 'SideStore öffnen', onPress: () => void Linking.openURL('sidestore://').catch(() => {}) },
     ],
   );
 }
@@ -64,17 +68,18 @@ let planned = '';
 export function planExpiryNotes() {
   const d = expiryDate();
   const on = notesOn();
-  const key = `${d?.getTime() ?? 0}:${on}`;
+  const en = isEn();
+  const key = `${d?.getTime() ?? 0}:${on}:${en}`;
   if (key === planned) return;
   planned = key;
   const t = d?.getTime() ?? 0;
-  const body = 'Noch nicht erneuert? In SideStore „Refresh All“ antippen – deine Daten bleiben.';
+  const body = en ? 'Not renewed yet? Tap “Refresh All” in SideStore – your data stays.' : 'Noch nicht erneuert? In SideStore „Refresh All“ antippen – deine Daten bleiben.';
   void scheduleNotes(
     'expiry-',
     on && t
       ? [
-          { id: 'day', title: 'TREKKING läuft morgen ab', body, at: t - 86_400_000 },
-          { id: 'hour', title: 'TREKKING läuft in 1 Stunde ab', body, at: t - 3_600_000 },
+          { id: 'day', title: en ? 'TREKKING expires tomorrow' : 'TREKKING läuft morgen ab', body, at: t - 86_400_000 },
+          { id: 'hour', title: en ? 'TREKKING expires in 1 hour' : 'TREKKING läuft in 1 Stunde ab', body, at: t - 3_600_000 },
         ]
       : [],
   );

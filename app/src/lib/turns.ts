@@ -87,6 +87,40 @@ export function findBends(s: Samples): Bend[] {
   return merged;
 }
 
+/**
+ * Raster der Stichproben i0…i1 (Zellen 10 m): Suche „liegt ein Wegpunkt ≤ 6 m an der Route?“ prüft nur die Nachbarzellen
+ * statt aller Stichproben (vorher je Wegpunkt alle bis zu 1000 Stichproben → Akku).
+ */
+const CELL = 10;
+function sampleGrid(s: Samples, i0: number, i1: number) {
+  const grid = new Map<number, number[]>();
+  for (let i = Math.max(0, i0); i <= Math.min(s.pts.length - 1, i1); i++) {
+    const k = cellKey(Math.floor(s.x[i] / CELL), Math.floor(s.y[i] / CELL));
+    const list = grid.get(k);
+    if (list) list.push(i);
+    else grid.set(k, [i]);
+  }
+  return grid;
+}
+const cellKey = (cx: number, cy: number) => cx * 1e7 + cy;
+
+/** Wie `nearest` über i0…i1, aber nur für Abstände ≤ CELL genau (sonst d = Infinity). Gleichstand → kleinerer Index (wie nearest). */
+function nearestIn(s: Samples, grid: Map<number, number[]>, x: number, y: number, i0: number, i1: number) {
+  let best = Infinity, bi = -1;
+  const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -1; dy <= 1; dy++) {
+      const list = grid.get(cellKey(cx + dx, cy + dy));
+      if (!list) continue;
+      for (const i of list) {
+        if (i < i0 || i > i1) continue;
+        const d = (s.x[i] - x) ** 2 + (s.y[i] - y) ** 2;
+        if (d < best || (d === best && i < bi)) { best = d; bi = i; }
+      }
+    }
+  return { d: Math.sqrt(best), i: bi };
+}
+
 /** Kürzester Abstand eines Punkts (lokale m) zu den Stichproben i0…i1 */
 function nearest(s: Samples, x: number, y: number, i0: number, i1: number) {
   let best = Infinity, bi = -1;
@@ -97,57 +131,102 @@ function nearest(s: Samples, x: number, y: number, i0: number, i1: number) {
   return { d: Math.sqrt(best), i: bi };
 }
 
+/** Wegpunkt, der die Route (im Abschnitt) auf ≤ 6 m berührt – lokale m des ganzen Wegs + Stelle j */
+type Touch = { lx: number[]; ly: number[]; j: number };
+
+const windowOf = (s: Samples, from: number, to: number) => [Math.max(0, Math.floor(Math.max(0, from - 20) / STEP)), Math.min(s.pts.length - 1, Math.ceil((to + 20) / STEP))];
+
+/** Alle Wegpunkte ≤ 6 m an den Stichproben i0…i1 (in Reihenfolge der Wege) */
+function touchesOf(s: Samples, roads: LatLng[][], grid: Map<number, number[]>, i0: number, i1: number): Touch[] {
+  const kx = 111320 * Math.cos((s.lat0 * Math.PI) / 180);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = i0; i <= i1; i++) {
+    minX = Math.min(minX, s.x[i]); maxX = Math.max(maxX, s.x[i]); minY = Math.min(minY, s.y[i]); maxY = Math.max(maxY, s.y[i]);
+  }
+  const out: Touch[] = [];
+  for (const line of roads) {
+    // ganzer Weg außerhalb des Ausschnitts → überspringen, ohne ihn umzurechnen
+    let inside = false;
+    for (const p of line) {
+      const x = p.lng * kx, y = p.lat * 110540;
+      if (x >= minX - 8 && x <= maxX + 8 && y >= minY - 8 && y <= maxY + 8) { inside = true; break; }
+    }
+    if (!inside) continue;
+    const lx = line.map((p) => p.lng * kx), ly = line.map((p) => p.lat * 110540);
+    for (let j = 0; j < line.length; j++) {
+      if (lx[j] < minX - 8 || lx[j] > maxX + 8 || ly[j] < minY - 8 || ly[j] > maxY + 8) continue;
+      if (nearestIn(s, grid, lx[j], ly[j], i0, i1).d <= 6) out.push({ lx, ly, j });
+    }
+  }
+  return out;
+}
+
+/** Abzweigungen an einem Berührpunkt (Route bei Stichprobe `hi`): 25 m den Weg entlang in beide Richtungen */
+function branchesAt(s: Samples, t: Touch, hi: number): Branch[] {
+  const { lx, ly, j } = t;
+  const along = hi * STEP;
+  const out: Branch[] = [];
+  for (const dir of [-1, 1]) {
+    let walked = 0, k = j, qx = lx[j], qy = ly[j];
+    while (walked < 25) {
+      const n = k + dir;
+      if (n < 0 || n >= lx.length) break;
+      const seg = Math.hypot(lx[n] - lx[k], ly[n] - ly[k]);
+      if (walked + seg >= 25) {
+        const t = (25 - walked) / seg;
+        qx = lx[k] + (lx[n] - lx[k]) * t;
+        qy = ly[k] + (ly[n] - ly[k]) * t;
+        walked = 25;
+        break;
+      }
+      walked += seg;
+      k = n;
+      qx = lx[k];
+      qy = ly[k];
+    }
+    if (walked < 12) continue;
+    if (nearest(s, qx, qy, hi - 14, hi + 14).d <= 10) continue; // läuft mit der Route
+    const dirDeg = (Math.atan2(qx - lx[j], qy - ly[j]) * 180) / Math.PI;
+    const rel = norm180(dirDeg - headingAt(s, along - 20, along));
+    if (Math.abs(rel) > 165) continue;
+    out.push({ along, side: Math.abs(rel) < 20 ? 'ahead' : rel > 0 ? 'right' : 'left', rel });
+  }
+  return out;
+}
+
+/** Abzweigungen der Berührpunkte, deren nächste Stichprobe in `from`…`to` liegt (sortiert, noch mit Doppelten) */
+function collect(s: Samples, touches: Touch[], grid: Map<number, number[]>, from: number, to: number, memo?: Map<Touch, Map<number, Branch[]>>): Branch[] {
+  const [i0, i1] = windowOf(s, from, to);
+  const out: Branch[] = [];
+  for (const t of touches) {
+    const hit = nearestIn(s, grid, t.lx[t.j], t.ly[t.j], i0, i1);
+    if (hit.d > 6) continue;
+    const along = hit.i * STEP;
+    if (along < from || along > to) continue;
+    let m = memo?.get(t), b = m?.get(hit.i);
+    if (!b) {
+      b = branchesAt(s, t, hit.i);
+      if (memo) {
+        if (!m) memo.set(t, (m = new Map()));
+        m.set(hit.i, b);
+      }
+    }
+    out.push(...b);
+  }
+  return out.sort((a, b) => a.along - b.along);
+}
+
+/** gleiche Abzweigung aus mehreren Kacheln/Linien nur einmal */
+const once = (out: Branch[]) => out.filter((b, i) => !out.slice(0, i).some((o) => o.side === b.side && Math.abs(o.along - b.along) < 12));
+
 /**
  * Abzweigungen zwischen `from` und `to` (m auf der Route): Wege aus den Kacheln, die die Route an einem Punkt berühren
  * und sich dann von ihr entfernen. `rel` = Richtung gegenüber der Fahrtrichtung (+ = rechts).
  */
 export function findBranches(s: Samples, roads: LatLng[][], from: number, to: number): Branch[] {
-  const i0 = Math.floor(Math.max(0, from - 20) / STEP), i1 = Math.ceil((to + 20) / STEP);
-  const kx = 111320 * Math.cos((s.lat0 * Math.PI) / 180);
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (let i = Math.max(0, i0); i <= Math.min(s.pts.length - 1, i1); i++) {
-    minX = Math.min(minX, s.x[i]); maxX = Math.max(maxX, s.x[i]); minY = Math.min(minY, s.y[i]); maxY = Math.max(maxY, s.y[i]);
-  }
-  const out: Branch[] = [];
-  for (const line of roads) {
-    const lx = line.map((p) => p.lng * kx), ly = line.map((p) => p.lat * 110540);
-    for (let j = 0; j < line.length; j++) {
-      if (lx[j] < minX - 8 || lx[j] > maxX + 8 || ly[j] < minY - 8 || ly[j] > maxY + 8) continue;
-      const hit = nearest(s, lx[j], ly[j], i0, i1);
-      if (hit.d > 6) continue;
-      const along = hit.i * STEP;
-      if (along < from || along > to) continue;
-      for (const dir of [-1, 1]) {
-        // 25 m entlang des Wegs gehen
-        let walked = 0, k = j, qx = lx[j], qy = ly[j];
-        while (walked < 25) {
-          const n = k + dir;
-          if (n < 0 || n >= line.length) break;
-          const seg = Math.hypot(lx[n] - lx[k], ly[n] - ly[k]);
-          if (walked + seg >= 25) {
-            const t = (25 - walked) / seg;
-            qx = lx[k] + (lx[n] - lx[k]) * t;
-            qy = ly[k] + (ly[n] - ly[k]) * t;
-            walked = 25;
-            break;
-          }
-          walked += seg;
-          k = n;
-          qx = lx[k];
-          qy = ly[k];
-        }
-        if (walked < 12) continue;
-        if (nearest(s, qx, qy, hit.i - 14, hit.i + 14).d <= 10) continue; // läuft mit der Route
-        const dirDeg = (Math.atan2(qx - lx[j], qy - ly[j]) * 180) / Math.PI;
-        const rel = norm180(dirDeg - headingAt(s, along - 20, along));
-        if (Math.abs(rel) > 165) continue;
-        out.push({ along, side: Math.abs(rel) < 20 ? 'ahead' : rel > 0 ? 'right' : 'left', rel });
-      }
-    }
-  }
-  out.sort((a, b) => a.along - b.along);
-  // gleiche Abzweigung aus mehreren Kacheln/Linien nur einmal
-  return out.filter((b, i) => !out.slice(0, i).some((o) => o.side === b.side && Math.abs(o.along - b.along) < 12));
+  const [i0, i1] = windowOf(s, from, to);
+  const grid = sampleGrid(s, i0, i1);
+  return once(collect(s, touchesOf(s, roads, grid, i0, i1), grid, from, to));
 }
 
 /** Gibt es Wege aus den Kacheln rund um diesen Punkt (Daten vorhanden)? */
@@ -191,18 +270,66 @@ function kindOf(angle: number): TurnKind {
 }
 
 /**
- * Nächster Hinweis ab `along`. `roads` = Wege aus den Kacheln (leer = unbekannt).
+ * Wege einmal je Abfrage vorbereiten (useGuide): Abzweigungen im Abschnitt `from`…`to` und je Knick „Wege vorhanden?“ gemerkt –
+ * vorher rechnete nextGuide beides alle 3 m für jeden Knick bis 5 km voraus neu.
+ */
+export type RoadIndex = {
+  roads: LatLng[][];
+  from: number;
+  to: number;
+  /** Berührpunkte im ganzen Abschnitt; je Abfrage nur noch „nächste Stichprobe im Fenster“ (wie findBranches, gleiche Ergebnisse) */
+  touches: Touch[];
+  grid: Map<number, number[]>;
+  memo: Map<Touch, Map<number, Branch[]>>;
+  cover: Map<number, boolean>;
+};
+
+export function indexRoads(s: Samples, roads: LatLng[][], from: number, to: number): RoadIndex {
+  const [i0, i1] = windowOf(s, from, to);
+  const grid = sampleGrid(s, i0, i1);
+  return { roads, from, to, touches: roads.length ? touchesOf(s, roads, grid, i0, i1) : [], grid, memo: new Map(), cover: new Map() };
+}
+
+/** Ausschnitt [west, süd, ost, nord] um die Route zwischen `from` und `to` (m), `pad` m Rand – für die Wege-Abfrage. */
+export function routeBox(s: Samples, from: number, to: number, pad = 300): [number, number, number, number] | null {
+  const i0 = Math.max(0, Math.floor(from / STEP)), i1 = Math.min(s.pts.length - 1, Math.ceil(to / STEP));
+  if (i1 < i0) return null;
+  let w = Infinity, e = -Infinity, so = Infinity, n = -Infinity;
+  for (let i = i0; i <= i1; i++) {
+    const p = s.pts[i];
+    if (p.lng < w) w = p.lng;
+    if (p.lng > e) e = p.lng;
+    if (p.lat < so) so = p.lat;
+    if (p.lat > n) n = p.lat;
+  }
+  const dLat = pad / 110540, dLng = pad / (111320 * Math.cos((s.lat0 * Math.PI) / 180));
+  return [w - dLng, so - dLat, e + dLng, n + dLat];
+}
+
+/**
+ * Nächster Hinweis ab `along`. `roads` = Wege aus den Kacheln (leer = unbekannt) bzw. vorbereitet (indexRoads; Knicke außerhalb
+ * seines Abschnitts gelten als „ohne Kacheln“).
  * Schaut höchstens `range` m voraus; sonst „Geradeaus“ bzw. „Ziel“.
  */
-export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][], along: number, length: number, range = 5000): Guide {
+export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadIndex, along: number, length: number, range = 5000): Guide {
+  const idx = Array.isArray(roads) ? null : roads;
+  const list = idx ? idx.roads : (roads as LatLng[][]);
+  const covered = (b: Bend) => {
+    if (!list.length) return false;
+    if (!idx) return roadsCover(list, b.at);
+    if (along < idx.from || b.along + 20 > idx.to) return false;
+    let v = idx.cover.get(b.along);
+    if (v === undefined) idx.cover.set(b.along, (v = roadsCover(list, b.at)));
+    return v;
+  };
   for (const b of bends) {
     if (b.along <= along + 3) continue;
     if (b.along > along + range) break;
     const side: Side = b.angle > 0 ? 'right' : 'left';
     let kind: TurnKind | null = null;
     let ordinal: number | undefined;
-    if (roads.length && roadsCover(roads, b.at)) {
-      const branches = findBranches(s, roads, along, b.along + 20);
+    if (covered(b)) {
+      const branches = idx ? once(collect(s, idx.touches, idx.grid, along, b.along + 20, idx.memo)) : findBranches(s, list, along, b.along + 20);
       const junction = branches.some((x) => Math.abs(x.along - b.along) <= 20);
       if (junction) {
         kind = kindOf(b.angle);

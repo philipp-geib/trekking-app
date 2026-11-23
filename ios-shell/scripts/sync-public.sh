@@ -10,7 +10,8 @@ git ls-files ios-shell | grep -v -e '^ios-shell/android-signing/' -e '^ios-shell
   mkdir -p "$DST/$(dirname "$f")" && cp "$f" "$DST/$f"
 done
 mkdir -p "$DST/app/src/lib" "$DST/.github/workflows"
-cp app/src/lib/geo.ts app/src/lib/turns.ts "$DST/app/src/lib/"
+# reine Rechenmodule, die die Hülle direkt einbindet (Abhängigkeiten mitnehmen!)
+cp app/src/lib/{geo,turns,kmVoice,moving,spoken,trackFilter,sport,hiking}.ts "$DST/app/src/lib/"
 cp ios-shell/public/README.md "$DST/README.md"
 cp ios-shell/public/workflows/ipa.yml "$DST/.github/workflows/ipa.yml"
 printf 'node_modules/\n.expo/\n/ios-shell/ios/\n/ios-shell/android/\n*.ipa\n*.apk\n' > "$DST/.gitignore"

@@ -5,7 +5,7 @@ Bildschirm, Google-Anmeldung, Hinweis vor dem Ablauf. Alles andere kommt wie gew
 
 ## Installieren (einmalig, je Person)
 
-Offizielle Anleitung: <https://docs.sidestore.io> (Reiter „iOS 18.0+“). Kurzfassung auf Deutsch (am 21.11. mit iOS 26 durchgespielt):
+Offizielle Anleitung: <https://docs.sidestore.io> (Reiter „iOS 18.0+“). Kurzfassung auf Deutsch (21./22.11. mit iOS 26 durchgespielt):
 
 **Vorbereiten (iPhone)**
 1. iPhone braucht einen Code, WLAN (kein Mobilfunk) und eine Apple-ID (Einstellungen → ganz oben eigener Name → E-Mail
@@ -24,16 +24,27 @@ Offizielle Anleitung: <https://docs.sidestore.io> (Reiter „iOS 18.0+“). Kurz
 6. Einstellungen → Allgemein → **VPN und Geräteverwaltung** → „Entwickler-App“ (erscheint erst nach Schritt 5) →
    eigene Apple-ID → **vertrauen**.
 7. Einstellungen → Datenschutz & Sicherheit → ganz unten **Entwicklermodus** an → Neustart → „Aktivieren“.
-8. LocalDevVPN → Connect. SideStore öffnen → **Settings → Sign in with Apple ID** (dieselbe Apple-ID wie in iloader).
-9. **My Apps** → neben SideStore auf **„7 DAYS“** tippen (bei Zertifikat-Frage „Yes“/„Refresh Now“).
+8. LocalDevVPN → Connect. SideStore öffnen → **Settings** und zuerst Anisette einstellen (seit 20.11. nötig, sonst
+   scheitert die Anmeldung mit 503/401 – am 22.11. so gelöst, Quelle SideStore-Issue #1745):
+   - **On-Device Anisette** aus
+   - **Anisette Server** → **„SideStore (New)“** (Nr. 5)
+   - **Reset adi.pb** → Header **behalten**
+   - **Anisette Client Configuration** → genau so eintragen und **Save Overrides**:
+     - Client Info: `<MacBookPro13,3> <Mac OS X;26.6;25F84> <com.apple.AuthKit/1 (com.apple.akd/1.0)>`
+     - User Agent: `akd/1.0 CFNetwork/811.5.4 Darwin/16.7.0`
+   - SideStore ganz schließen (App-Umschalter hochwischen), neu öffnen.
+9. **Settings → Sign in with Apple ID** (dieselbe Apple-ID wie in iloader).
+10. **My Apps** → neben SideStore auf **„7 DAYS“** tippen (bei Zertifikat-Frage „Yes“/„Refresh Now“).
 
 **TREKKING installieren**
-10. In Safari <https://trek-king.pages.dev/app/TREKKING.ipa> laden (oder GitHub → Releases → „iPhone-App (SideStore)“).
-11. SideStore → **My Apps** → **+** → Downloads → TREKKING.ipa.
-12. TREKKING öffnen, anmelden bzw. Zugang anfragen (Freischaltung) – beim ersten Tourstart Standort **„Immer“**.
+11. In Safari <https://trek-king.pages.dev/app/TREKKING.ipa> laden.
+12. SideStore → **My Apps** → **+** → Downloads → TREKKING.ipa. Frage zur Erweiterung (Live-Aktivität) →
+    **„Register App ID for Each Extension“**.
+13. TREKKING öffnen, Konto anlegen bzw. anmelden – beim ersten Tourstart Standort **„Immer“**.
 
 Alle 7 Tage muss die App in SideStore erneuert werden („7 DAYS“ bzw. „Refresh All“, VPN an; geht am iPhone, auch per
-Kurzbefehl-Automation). TREKKING erinnert 2 Tage vorher. Abgelaufen = App öffnet nicht, Daten bleiben.
+Kurzbefehl-Automation). TREKKING zeigt es 2 Tage vorher an und schickt 1 Tag und 1 Stunde vorher eine Mitteilung.
+Abgelaufen = App öffnet nicht, Daten bleiben.
 Nach iOS-Update/Zurücksetzen kann die Pairing-Datei ungültig werden → in iloader „Manage Pairing File“ neu ablegen.
 
 ### Alternative: AltStore Classic (erneuert automatisch, wenn der Mac läuft)
@@ -63,8 +74,7 @@ des Macs (klappt), SideStore holt sie von einem fremden Anisette-Server – ist 
 geblockt, wird die Geräte-Anmeldung nicht fertig. Liegt weder am Passwort noch an TREKKING.
 
 Was helfen kann:
-- **Meldung 401 (Nutzerbericht Nov. 2026):** LocalDevVPN an → SideStore-Einstellungen: „On-Device Anisette“ aus, Anisette-Server „SideStore (New)“ mit
-  automatischer Rotation aus → „Reset adi.pb“ ohne „keep headers“ → SideStore ganz schließen, neu öffnen, anmelden.
+- **Meldung 503/401:** Schritt 8 genau so wiederholen (vor allem Client Info + User Agent, Save Overrides, SideStore neu starten).
 - Ein paarmal erneut versuchen; SideStore ganz schließen, LocalDevVPN verbinden, wieder öffnen.
 - SideStore → Settings → **Anisette Server** → einen anderen wählen (alle durchprobieren).
 - Falls vorhanden: Settings → **„Reset adi.pb“**, dann SideStore neu starten.

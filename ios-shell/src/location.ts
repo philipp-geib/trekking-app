@@ -1,11 +1,13 @@
 // Standort für die Web-App: im Vordergrund ein normales Abo (Karte, Planer, Wetter), während einer Tour die Hintergrund-
 // Aufzeichnung (iOS: blaue Anzeige oben, Android: Vordergrund-Dienst mit Mitteilung; läuft bei gesperrtem Bildschirm weiter). Punkte aus dem Hintergrund werden
 // gesammelt (auch in einer Datei, falls die App neu startet) und nach dem Entsperren an die Web-App übergeben.
+import { isEn } from './lang';
 import { File, Paths } from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { AppState, Platform } from 'react-native';
 import { guideStep } from './guide';
+import { kmBackground } from './km';
 
 export const TASK = 'trekking-tour-location';
 
@@ -66,6 +68,7 @@ TaskManager.defineTask<{ locations: Location.LocationObject[] }>(TASK, async ({ 
   for (const raw of data.locations) {
     const l = plain(raw);
     guideStep(l, !active);
+    if (!active) kmBackground(l);
     if (active && !buffer.length && deliver?.(l)) continue;
     buffer.push(l);
     save();
@@ -97,8 +100,8 @@ export async function startTour(): Promise<boolean> {
     showsBackgroundLocationIndicator: true,
     // Android: Aufzeichnung als Vordergrund-Dienst mit dauerhafter Mitteilung (sonst stoppt Android sie im Hintergrund)
     foregroundService: {
-      notificationTitle: 'TREKKING zeichnet auf',
-      notificationBody: 'Deine Tour wird auch bei gesperrtem Bildschirm aufgezeichnet.',
+      notificationTitle: isEn() ? 'TREKKING is recording' : 'TREKKING zeichnet auf',
+      notificationBody: isEn() ? 'Your tour is recorded even with the screen locked.' : 'Deine Tour wird auch bei gesperrtem Bildschirm aufgezeichnet.',
       notificationColor: '#438482',
       killServiceOnDestroy: false,
     },

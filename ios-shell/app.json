@@ -20,7 +20,7 @@
     "ios": {
       "bundleIdentifier": "de.philippgeib.trekking.app",
       "supportsTablet": false,
-      "buildNumber": "2",
+      "buildNumber": "3",
       "config": {
         "usesNonExemptEncryption": false
       },

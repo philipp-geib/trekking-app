@@ -87,6 +87,12 @@ function say(text: string, en: boolean) {
   utter(text, en ? 'en-GB' : 'de-DE', voiceId);
 }
 
+/** Ansage im Hintergrund außerhalb der Abbiegehinweise (Kilometer-Ansage, src/km.ts) */
+export function sayInBackground(text: string, en: boolean) {
+  audio();
+  say(text, en);
+}
+
 /** Ansage der Web-App im Vordergrund (src/lib/voice.ts: {type:'say'}). */
 export function sayFromPage(text: string, language: string, voice: string | undefined, urgent: boolean) {
   audio();

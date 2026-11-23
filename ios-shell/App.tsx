@@ -16,7 +16,9 @@ import type { ShouldStartLoadRequest, WebViewOpenWindowEvent } from 'react-nativ
 const Web = WebView as unknown as React.ComponentType<Record<string, unknown> & { ref?: React.Ref<WebView> }>;
 import { bridge } from './src/bridge';
 import { checkExpiry, planExpiryNotes, setExpiryNotes } from './src/expiry';
+import { isEn, setLang } from './src/lang';
 import { deviceVoices, hush, sayFromPage, setNav, type NavMsg } from './src/guide';
+import { clearKm, setKm, type KmMsg } from './src/km';
 import { savePhoto } from './src/photos';
 import { currentPosition, setDeliver, setWatch, startTour, stopTour, takeBuffer, type Loc } from './src/location';
 import { setAppIcon } from './modules/app-icon';
@@ -161,13 +163,17 @@ export default function App() {
         background.current = await startTour().catch(() => false);
         if (!background.current)
           Alert.alert(
-            ANDROID ? 'Standort erlauben' : 'Standort „Immer“ erlauben',
-            ANDROID
-              ? 'Damit TREKKING deine Tour aufzeichnet (auch bei gesperrtem Bildschirm): Berechtigungen → Standort → „Nur bei Nutzung der App zulassen“ oder „Immer zulassen“.'
-              : 'Damit TREKKING auch bei gesperrtem Bildschirm aufzeichnet und ansagt: Einstellungen → TREKKING → Standort → „Immer“.',
+            isEn() ? (ANDROID ? 'Allow location' : 'Allow location “Always”') : ANDROID ? 'Standort erlauben' : 'Standort „Immer“ erlauben',
+            isEn()
+              ? ANDROID
+                ? 'So TREKKING can record your tour (even with the screen locked): Permissions → Location → “Allow only while using the app” or “Allow all the time”.'
+                : 'So TREKKING can record and give directions with the screen locked: Settings → TREKKING → Location → “Always”.'
+              : ANDROID
+                ? 'Damit TREKKING deine Tour aufzeichnet (auch bei gesperrtem Bildschirm): Berechtigungen → Standort → „Nur bei Nutzung der App zulassen“ oder „Immer zulassen“.'
+                : 'Damit TREKKING auch bei gesperrtem Bildschirm aufzeichnet und ansagt: Einstellungen → TREKKING → Standort → „Immer“.',
             [
-              { text: 'Später', style: 'cancel' },
-              { text: 'Einstellungen', onPress: () => void Linking.openSettings() },
+              { text: isEn() ? 'Later' : 'Später', style: 'cancel' },
+              { text: isEn() ? 'Settings' : 'Einstellungen', onPress: () => void Linking.openSettings() },
             ],
           );
       } else if (!m.on && recording.current) {
@@ -204,7 +210,11 @@ export default function App() {
           }
           break;
         case 'nav':
+          if (!m.on) clearKm();
           void onNav(m as unknown as NavMsg);
+          break;
+        case 'km':
+          setKm(m as unknown as KmMsg);
           break;
         case 'say':
           if (typeof m.text === 'string') sayFromPage(m.text, typeof m.lang === 'string' ? m.lang : 'de-DE', typeof m.voice === 'string' ? m.voice : undefined, !!m.urgent);
@@ -225,6 +235,9 @@ export default function App() {
           break;
         case 'look':
           if (typeof m.bg === 'string') saveBg(m.bg);
+          break;
+        case 'lang':
+          if (setLang(m.lang)) planExpiryNotes();
           break;
         case 'expiryNotes':
           setExpiryNotes(m.on !== false);
