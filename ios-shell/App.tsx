@@ -353,9 +353,12 @@ export default function App() {
         allowsBackForwardNavigationGestures={false}
         sharedCookiesEnabled
         applicationNameForUserAgent={ANDROID ? 'TREKKING-Android/1' : 'TREKKING-iOS/1'}
+        // Alle Adressen in den eigenen Handler: die Standard-Liste (nur http/https) prüft andere Schemata per canOpenURL – das ist ohne
+        // LSApplicationQueriesSchemes bzw. <queries> immer false, sidestore:// und mailto: taten dann nichts (Nutzer 25.11.).
+        originWhitelist={['*']}
         onShouldStartLoadWithRequest={(r: ShouldStartLoadRequest) => {
-          // Mail/Telefon/SideStore an das System geben
-          if (/^(mailto|tel|sms|sidestore|googlegmail|ms-outlook):/.test(r.url)) {
+          // Mail/Telefon/SideStore … an das System geben (alles außer Web-Adressen)
+          if (!/^(https?|about|blob|data|file):/.test(r.url)) {
             void Linking.openURL(r.url);
             return false;
           }

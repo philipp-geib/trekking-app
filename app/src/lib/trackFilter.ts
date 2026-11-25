@@ -22,7 +22,7 @@ const still = (speed?: number | null) => speed != null && speed >= 0 && speed < 
 
 /** Wie schnell sich die Position ändern darf (m/s) – höher = folgt schneller, glättet weniger. Im Stand fast gar nicht. */
 export const filterSpeed = (sport: Sport, gpsSpeed?: number | null) =>
-  still(gpsSpeed) ? 0.3 : Math.max(isHike(sport) ? 2.5 : isFoot(sport) ? 4 : 6, gpsSpeed ?? 0);
+  still(gpsSpeed) ? 0.3 : Math.max(isHike(sport) || sport === 'schneeschuh' ? 2.5 : isFoot(sport) ? 4 : 6, gpsSpeed ?? 0);
 
 export type Step = {
   kf: Kf;

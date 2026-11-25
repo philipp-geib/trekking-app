@@ -2,7 +2,7 @@
 // Skiabfahrt: Höhenmeter bergauf zählen als Lift.
 import { HIKING, hikingTime } from './hiking';
 
-export type Sport = 'wandern' | 'bergwandern' | 'klettersteig' | 'laufen' | 'rad' | 'mtb' | 'rennrad' | 'skitour' | 'ski' | 'telemark';
+export type Sport = 'wandern' | 'bergwandern' | 'klettersteig' | 'laufen' | 'rad' | 'mtb' | 'rennrad' | 'skitour' | 'ski' | 'telemark' | 'schneeschuh' | 'langlauf';
 
 type Info = {
   label: string;
@@ -39,6 +39,10 @@ export const SPORTS: Record<Sport, Info> = {
   ski: { label: 'Skiabfahrt', icon: 'ski', profiles: [FOOT, 'hiking-mountain'], kmh: 25, upPerHour: 2000 },
   // Telemark: freie Ferse, Kniebeuge im Schwung; meist Piste/Lift, oft auch mit Fellen bergauf
   telemark: { label: 'Telemark', icon: 'ski', profiles: [FOOT, 'hiking-mountain'], kmh: 20, upPerHour: 1500 },
+  // Schneeschuh (Nutzer 25.11.): zu Fuß im Schnee – Wander-Profil, DIN-Zeit langsamer (Spuren, Tiefschnee); immer mit Lawinenlagebericht
+  schneeschuh: { label: 'Schneeschuh', icon: 'snowshoe', profiles: [FOOT, 'hiking-mountain'], pace: 0.7 },
+  // Skilanglauf (Nutzer 25.11.): auf Loipen (lib/loipen.ts, Weg = Loipe aus OSM); BRouter nur für Stücke abseits der Loipe
+  langlauf: { label: 'Langlauf', icon: 'ski', profiles: [FOOT, 'hiking-mountain'], kmh: 10, upPerHour: 450 },
 };
 
 /** Zu Fuß am Berg (Wandern-Verwandte): DIN-Zeit, nasse Wege, Trittsicherheit */
@@ -46,29 +50,35 @@ export const HIKE_SPORTS: Sport[] = ['wandern', 'bergwandern', 'klettersteig'];
 export const isHike = (s?: Sport) => !!s && HIKE_SPORTS.includes(s);
 
 /** Schnee-Sportarten: Hangneigung, Lawinenlage */
-export const SNOW_SPORTS: Sport[] = ['skitour', 'ski', 'telemark'];
+export const SNOW_SPORTS: Sport[] = ['skitour', 'ski', 'telemark', 'schneeschuh'];
 export const isSnow = (s?: Sport) => !!s && SNOW_SPORTS.includes(s);
+/** Ski-Sportarten (mit `WINTER` ausgeblendet) – Schneeschuh bleibt wählbar */
+export const SKI_SPORTS: Sport[] = ['skitour', 'ski', 'telemark'];
 
 export const SPORT_IDS = Object.keys(SPORTS) as Sport[];
 
 /** Wintersport (Skitour, Skiabfahrt, Telemark, Skigebiet, Hangneigung) vorerst ausgeblendet (Nutzer, 20.11.) – Code bleibt. */
 export const WINTER = false;
 /** Wählbare Sportarten (Auswahl, KI, geführter Plan) */
-export const PICK_SPORTS: Sport[] = SPORT_IDS.filter((s) => WINTER || !isSnow(s));
+export const PICK_SPORTS: Sport[] = SPORT_IDS.filter((s) => WINTER || !SKI_SPORTS.includes(s));
+/** Lawinenlagebericht immer (nicht erst, wenn Schnee liegen könnte): wählbare Schnee-Sportarten (Schneeschuh, mit WINTER auch Ski) */
+export const avalancheAlways = (s?: Sport) => isSnow(s) && PICK_SPORTS.includes(s!);
 /** Zuletzt gewählte Sportart – ausgeblendete zählen als Wandern */
 export const pickedSport = (x?: { sport?: Sport } | null): Sport => {
   const s = sportOf(x);
   return PICK_SPORTS.includes(s) ? s : 'wandern';
 };
+/** Langlauf: Loipen auf der Karte, Loipe wählen (Planer + Navigation), Winterkarte – unabhängig von `WINTER` (Nutzer 25.11.) */
+export const isNordic = (s?: Sport) => s === 'langlauf';
 /** Zu Fuß (Lawinenlagebericht nur, wenn auf der Route Schnee liegen könnte) */
-export const isFoot = (s?: Sport) => isHike(s) || s === 'laufen';
+export const isFoot = (s?: Sport) => isHike(s) || s === 'laufen' || s === 'schneeschuh';
 
 /** Tempo als Pace (min/km) statt km/h – Laufen und Gehen (Nutzer 22./23.11.); Klettersteig nicht (Strecke sagt dort wenig) */
-export const usesPace = (s?: Sport) => s === 'wandern' || s === 'bergwandern' || s === 'laufen';
+export const usesPace = (s?: Sport) => s === 'wandern' || s === 'bergwandern' || s === 'laufen' || s === 'schneeschuh';
 /** Zurückgelegte Strecke: „Gelaufen“ zu Fuß, sonst „Gefahren“ (Nutzer 23.11.: beim Rad stand „Gelaufen“) */
-export const movedWord = (s?: Sport) => (isFoot(s) || s === 'skitour' ? 'Gelaufen' : 'Gefahren');
+export const movedWord = (s?: Sport) => (isFoot(s) || s === 'skitour' || s === 'langlauf' ? 'Gelaufen' : 'Gefahren');
 /** Geschätzte Zeit: „Gehzeit“ / „Laufzeit“ / „Fahrzeit“ */
-export const timeWord = (s?: Sport) => (s === 'laufen' ? 'Laufzeit' : isFoot(s) || s === 'skitour' ? 'Gehzeit' : 'Fahrzeit');
+export const timeWord = (s?: Sport) => (s === 'laufen' || s === 'langlauf' ? 'Laufzeit' : isFoot(s) || s === 'skitour' ? 'Gehzeit' : 'Fahrzeit');
 /** Fahrrad-Sportarten (Wattmesser, Trittfrequenz) */
 export const isBike = (s?: Sport) => s === 'rad' || s === 'mtb' || s === 'rennrad';
 
@@ -105,6 +115,8 @@ export const SPEED_RANGE: Record<Sport, [number, number, number]> = {
   skitour: [2, 10, 0.5],
   ski: [10, 50, 1],
   telemark: [10, 40, 1],
+  schneeschuh: [1.5, 5, 0.1],
+  langlauf: [4, 30, 0.5],
 };
 
 const snap = (sport: Sport, v: number) => {
@@ -136,6 +148,8 @@ const DID: Record<Sport, [string, string]> = {
   skitour: ['war auf Skitour', 'warst auf Skitour'],
   ski: ['war Ski fahren', 'warst Ski fahren'],
   telemark: ['war Telemark fahren', 'warst Telemark fahren'],
+  schneeschuh: ['war schneeschuhwandern', 'warst schneeschuhwandern'],
+  langlauf: ['war langlaufen', 'warst langlaufen'],
 };
 
 /** Satzende nach dem Namen: you = „Du …“ */
