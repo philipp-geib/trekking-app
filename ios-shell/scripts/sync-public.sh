@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Spiegelt die Hülle ins öffentliche Repo philipp-geib/trekking-app (dort laufen die Mac-Builds kostenlos).
-# Ohne Android-Schlüssel. Aufruf: bash ios-shell/scripts/sync-public.sh <Klon von trekking-app>
+# Ohne Android-Schlüssel (der liegt dort nur als Secret ANDROID_KEYSTORE + ANDROID_KEYSTORE_PASSWORD). Aufruf: bash ios-shell/scripts/sync-public.sh <Klon von trekking-app>
 set -euo pipefail
 DST="${1:?Ziel-Ordner (Klon von trekking-app)}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -14,5 +14,6 @@ mkdir -p "$DST/app/src/lib" "$DST/.github/workflows"
 cp app/src/lib/{geo,turns,kmVoice,moving,spoken,trackFilter,sport,hiking}.ts "$DST/app/src/lib/"
 cp ios-shell/public/README.md "$DST/README.md"
 cp ios-shell/public/workflows/ipa.yml "$DST/.github/workflows/ipa.yml"
+cp ios-shell/public/workflows/apk.yml "$DST/.github/workflows/apk.yml"
 printf 'node_modules/\n.expo/\n/ios-shell/ios/\n/ios-shell/android/\n*.ipa\n*.apk\n' > "$DST/.gitignore"
 echo "Gespiegelt: $(git rev-parse --short HEAD)"

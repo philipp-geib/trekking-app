@@ -5,4 +5,5 @@ mit Standort, Hintergrund-Aufzeichnung, Sprachansagen, App-Symbol) und zwei rein
 Keine Zugangsdaten, keine Nutzerdaten. Wird aus dem privaten Haupt-Repo gespiegelt (`ios-shell/scripts/sync-public.sh`) –
 hier nichts von Hand ändern.
 
-GitHub Actions baut bei jedem Push eine unsignierte `TREKKING.ipa` (Release „iphone“), installiert per iloader/SideStore.
+GitHub Actions baut bei jedem Push eine unsignierte `TREKKING.ipa` (Release „iphone“), installiert per iloader/SideStore,
+und die signierte `TREKKING.apk` (Release „android“; Schlüssel nur als Secrets `ANDROID_KEYSTORE` + `ANDROID_KEYSTORE_PASSWORD`).

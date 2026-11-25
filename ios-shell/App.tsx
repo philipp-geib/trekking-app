@@ -6,8 +6,9 @@ import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Appearance, AppState, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest, WebViewOpenWindowEvent } from 'react-native-webview/lib/WebViewTypes';
@@ -20,6 +21,7 @@ import { isEn, setLang } from './src/lang';
 import { deviceVoices, hush, sayFromPage, setNav, type NavMsg } from './src/guide';
 import { clearKm, setKm, type KmMsg } from './src/km';
 import { savePhoto } from './src/photos';
+import { shareFile, shareText } from './src/files';
 import { currentPosition, setDeliver, setWatch, startTour, stopTour, takeBuffer, type Loc } from './src/location';
 import { setAppIcon } from './modules/app-icon';
 import { showWhenLocked } from './modules/lock-screen';
@@ -31,21 +33,41 @@ const TEAL = '#438482';
 /** Hintergrund bis die Seite da ist = Farbe ihres Startbilds (eigene Farbe/Nacht), von der Seite gemeldet und gemerkt */
 const lookFile = new File(Paths.document, 'look.json');
 const HEX = /^#[0-9a-f]{6}$/i;
-const savedBg = (() => {
+type Look = { bg?: string; scheme?: Scheme };
+type Scheme = 'light' | 'dark' | 'auto';
+const look: Look = (() => {
   try {
-    const bg = lookFile.exists ? (JSON.parse(lookFile.textSync()) as { bg?: string }).bg : null;
-    return bg && HEX.test(bg) ? bg : TEAL;
+    return lookFile.exists ? (JSON.parse(lookFile.textSync()) as Look) : {};
   } catch {
-    return TEAL;
+    return {};
   }
 })();
-function saveBg(bg: string) {
-  if (!HEX.test(bg) || bg === savedBg) return;
+const savedBg = look.bg && HEX.test(look.bg) ? look.bg : TEAL;
+function saveLook(patch: Look) {
+  Object.assign(look, patch);
   try {
-    lookFile.write(JSON.stringify({ bg }));
+    lookFile.write(JSON.stringify(look));
   } catch {
-    // egal – nächster Start nimmt dann Teal
+    // egal – nächster Start nimmt dann Teal/System
   }
+}
+function saveBg(bg: string) {
+  if (HEX.test(bg) && bg !== look.bg) saveLook({ bg });
+}
+/** Hell/Dunkel wie in TREKKING gewählt (Profil → Design), nicht wie das System: sonst meldet die WebView „dunkel“ bzw. dunkelt
+ *  selbst ab, obwohl „Hell“ gewählt ist (Android, Nutzer 22./24.11.). Gemerkt, damit die WebView schon im richtigen Modus startet. */
+function applyScheme(s: Scheme) {
+  try {
+    Appearance.setColorScheme(s === 'auto' ? 'unspecified' : s);
+  } catch {
+    // ältere Plattformen – egal
+  }
+}
+if (look.scheme) applyScheme(look.scheme);
+function setScheme(s: unknown) {
+  if (s !== 'light' && s !== 'dark' && s !== 'auto') return;
+  applyScheme(s);
+  if (s !== look.scheme) saveLook({ scheme: s });
 }
 const ANDROID = Platform.OS === 'android';
 
@@ -245,6 +267,21 @@ export default function App() {
         case 'icon':
           if (typeof m.name === 'string' || m.name === null) setAppIcon(m.name as string | null);
           break;
+        case 'theme':
+          setScheme(m.mode);
+          break;
+        case 'wake':
+          // Bildschirm wach (Navigation) – die Android-WebView kennt navigator.wakeLock nicht
+          if (m.on) void activateKeepAwakeAsync('page').catch(() => {});
+          else void deactivateKeepAwake('page').catch(() => {});
+          break;
+        case 'file':
+          if (typeof m.name === 'string' && typeof m.data === 'string')
+            void shareFile(m.name, m.data).catch(() => Alert.alert(isEn() ? 'Sharing failed' : 'Teilen nicht möglich'));
+          break;
+        case 'share':
+          void shareText(String(m.title ?? ''), String(m.text ?? ''), String(m.url ?? '')).catch(() => {});
+          break;
         case 'bar':
           setBar(barFor(typeof m.color === 'string' ? m.color : null));
           break;
@@ -294,6 +331,7 @@ export default function App() {
         automaticallyAdjustContentInsets={false}
         bounces={false}
         allowsInlineMediaPlayback
+        mediaCapturePermissionGrantType="grant"
         allowsLinkPreview={false}
         allowsBackForwardNavigationGestures={false}
         sharedCookiesEnabled

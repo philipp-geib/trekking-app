@@ -4,10 +4,12 @@
 // speech: Seite spricht über die App ({type:'say'|'hush'|'voices'}, Antwort window.__trekkingVoices(list)).
 // renew: iPhone-App erinnert vor dem Ablauf (SideStore) – Seite zeigt dafür einen Schalter, meldet {type:'expiryNotes', on}.
 // build: Build-Nummer der App (Android versionCode / iOS buildNumber) → Update-Hinweis der Seite (lib/appUpdate).
+// wake/files/share/theme (version 4): Bildschirm wach, Datei bzw. Link teilen, Hell/Dunkel der App = Einstellung der Seite.
+// mic: WebView darf aufs Mikrofon (Spracheingabe im KI-Chat, ab buildNumber 4).
 // insets: Ränder in CSS-Pixeln (Android zeichnet randlos, die WebView meldet sie aber nicht über env(safe-area-inset-*)).
 export const bridge = (platform: string, insets: { top: number; bottom: number }, build = 0) => `(function () {
   if (window.TREKKING_SHELL) return;
-  window.TREKKING_SHELL = { version: 3, speech: true, photos: true, icons: ${platform === 'ios'}, renew: ${platform === 'ios'}, build: ${build}, platform: ${JSON.stringify(platform)}, insets: ${JSON.stringify(insets)} };
+  window.TREKKING_SHELL = { version: 4, speech: true, photos: true, wake: true, files: true, share: true, theme: true, icons: ${platform === 'ios'}, renew: ${platform === 'ios'}, mic: ${platform === 'ios'}, build: ${build}, platform: ${JSON.stringify(platform)}, insets: ${JSON.stringify(insets)} };
   var send = function (m) { window.ReactNativeWebView.postMessage(JSON.stringify(m)); };
   var watchers = {}, next = 1, pending = [], last = null;
   var count = function () { return Object.keys(watchers).length; };

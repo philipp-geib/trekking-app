@@ -20,7 +20,7 @@
     "ios": {
       "bundleIdentifier": "de.philippgeib.trekking.app",
       "supportsTablet": false,
-      "buildNumber": "3",
+      "buildNumber": "4",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -36,7 +36,9 @@
         "NSCameraUsageDescription": "Mit der Kamera hältst du Fotos unterwegs fest.",
         "NSPhotoLibraryUsageDescription": "TREKKING braucht Zugriff auf deine Fotos, damit du Bilder zu Touren und deinem Profil hinzufügen kannst.",
         "NSPhotoLibraryAddUsageDescription": "TREKKING sichert Fotos deiner Touren in deiner Mediathek.",
-        "NSMotionUsageDescription": "Der Kompass zeigt, wohin du schaust."
+        "NSMotionUsageDescription": "Der Kompass zeigt, wohin du schaust.",
+        "NSMicrophoneUsageDescription": "Mit dem Mikrofon sprichst du Nachrichten an die KI ein.",
+        "NSSpeechRecognitionUsageDescription": "Deine Sprache wird für die KI in Text umgewandelt."
       }
     },
     "plugins": [

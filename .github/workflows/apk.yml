@@ -1,0 +1,84 @@
+name: Android-App (APK)
+# Öffentliches Repo → Runner kostenlos. Baut die signierte TREKKING.apk und legt sie in den Release „android“.
+# Signierschlüssel nur als Secrets (nie ins Repo!): ANDROID_KEYSTORE = trekking.jks als Base64, ANDROID_KEYSTORE_PASSWORD.
+# Ohne Secrets wird nichts gebaut (kein Fehler).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE != '' }}
+    steps:
+      - name: Schlüssel da?
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice::Secret ANDROID_KEYSTORE fehlt – keine APK gebaut."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ios-shell/package-lock.json
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.HAS_KEY == 'true'
+      - name: Abhängigkeiten
+        if: env.HAS_KEY == 'true'
+        working-directory: ios-shell
+        run: npm ci
+      - name: Android-Projekt erzeugen
+        if: env.HAS_KEY == 'true'
+        working-directory: ios-shell
+        env:
+          CI: 1
+        run: npx expo prebuild -p android --clean --no-install
+      - name: Bauen (nur arm64 – alle aktuellen Handys, hält die Datei unter 25 MB)
+        if: env.HAS_KEY == 'true'
+        working-directory: ios-shell/android
+        run: |
+          LOG="$RUNNER_TEMP/gradle.log"
+          if ! ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon > "$LOG" 2>&1; then
+            grep -nE "error:|FAILURE|What went wrong|e: " "$LOG" | head -80
+            tail -60 "$LOG"
+            exit 1
+          fi
+          ls -lh app/build/outputs/apk/release/
+      - name: Signieren
+        if: env.HAS_KEY == 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KS" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/trekking.jks"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          IN=$(ls ios-shell/android/app/build/outputs/apk/release/*.apk | head -1)
+          mkdir -p "$RUNNER_TEMP/apk"
+          "$BT/zipalign" -f -p 4 "$IN" "$RUNNER_TEMP/apk/aligned.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/trekking.jks" --ks-key-alias trekking \
+            --ks-pass env:KS_PASS --key-pass env:KS_PASS \
+            --out "$RUNNER_TEMP/apk/TREKKING.apk" "$RUNNER_TEMP/apk/aligned.apk"
+          rm -f "$RUNNER_TEMP/trekking.jks"
+          "$BT/apksigner" verify --print-certs "$RUNNER_TEMP/apk/TREKKING.apk" | head -3
+          ls -lh "$RUNNER_TEMP/apk/TREKKING.apk"
+      - name: Release „android“ aktualisieren
+        if: env.HAS_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view android >/dev/null 2>&1 || gh release create android --title "Android-App" --prerelease \
+            --notes "TREKKING.apk auf dem Android-Handy laden und öffnen (Installation aus dieser Quelle erlauben)."
+          gh release upload android "$RUNNER_TEMP/apk/TREKKING.apk" --clobber
