@@ -9,7 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Appearance, AppState, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
-import { initialWindowMetrics } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest, WebViewOpenWindowEvent } from 'react-native-webview/lib/WebViewTypes';
 
@@ -100,6 +100,14 @@ function barFor(color: string | null): StatusBarStyle {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <Shell />
+    </SafeAreaProvider>
+  );
+}
+
+function Shell() {
   const web = useRef<WebView>(null);
   const ready = useRef(false);
   const watchers = useRef(0);
@@ -111,6 +119,16 @@ export default function App() {
   const canBack = useRef(false);
   const wantUpdate = useRef(false);
   const BRIDGE = useMemo(() => bridge(Platform.OS, insets(), BUILD, selfUpdateOk()), []);
+  // Ränder können sich ändern (3-Tasten- ↔ Gesten-Navigation, Start vor dem Anlegen des Fensters) → an die Seite (webSafeArea hört auf resize)
+  const live = useSafeAreaInsets();
+  const sendInsets = useCallback(() => {
+    if (!ANDROID || !ready.current) return;
+    const i = { top: Math.round(live.top), bottom: Math.round(live.bottom) };
+    web.current?.injectJavaScript(
+      `if (window.TREKKING_SHELL) { window.TREKKING_SHELL.insets = ${JSON.stringify(i)}; window.dispatchEvent(new Event('resize')); } true;`,
+    );
+  }, [live.top, live.bottom]);
+  useEffect(sendInsets, [sendInsets]);
 
   // Android: Zurück-Taste geht in der Seite zurück, erst auf der Startseite schließt sie die App
   useEffect(() => {
@@ -232,6 +250,7 @@ export default function App() {
         case 'ready':
           ready.current = true;
           flush();
+          sendInsets();
           break;
         case 'geo':
           if (m.op === 'watch') {
@@ -312,7 +331,7 @@ export default function App() {
           break;
       }
     },
-    [flush, updateWatch, sendGeo, denied, inject, onNav],
+    [flush, updateWatch, sendGeo, denied, inject, onNav, sendInsets],
   );
 
   if (failed)
