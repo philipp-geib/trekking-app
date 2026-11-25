@@ -22,6 +22,7 @@ import { deviceVoices, hush, sayFromPage, setNav, type NavMsg } from './src/guid
 import { clearKm, setKm, type KmMsg } from './src/km';
 import { savePhoto } from './src/photos';
 import { shareFile, shareText } from './src/files';
+import { canInstall, installReady, prepare, selfUpdateOk, updateNow } from './src/selfUpdate';
 import { currentPosition, setDeliver, setWatch, startTour, stopTour, takeBuffer, type Loc } from './src/location';
 import { setAppIcon } from './modules/app-icon';
 import { showWhenLocked } from './modules/lock-screen';
@@ -108,7 +109,8 @@ export default function App() {
   const [failed, setFailed] = useState(false);
   const [start, setStart] = useState<string | null>(null);
   const canBack = useRef(false);
-  const BRIDGE = useMemo(() => bridge(Platform.OS, insets(), BUILD), []);
+  const wantUpdate = useRef(false);
+  const BRIDGE = useMemo(() => bridge(Platform.OS, insets(), BUILD, selfUpdateOk()), []);
 
   // Android: Zurück-Taste geht in der Seite zurück, erst auf der Startseite schließt sie die App
   useEffect(() => {
@@ -149,11 +151,21 @@ export default function App() {
     setDeliver(sendGeo);
     checkExpiry();
     planExpiryNotes();
+    if (ANDROID && canInstall()) void prepare(BUILD);
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') {
         flush();
         checkExpiry();
         planExpiryNotes();
+        if (ANDROID && canInstall()) void prepare(BUILD);
+        if (wantUpdate.current && canInstall()) {
+          // vom Einstellungs-Bildschirm („Apps aus dieser Quelle installieren“) zurück
+          wantUpdate.current = false;
+          void updateNow(BUILD);
+        }
+      } else if (st === 'background' && ANDROID && !recording.current) {
+        // neue Version still einspielen – App endet, beim nächsten Öffnen läuft die neue
+        void installReady().catch(() => {});
       }
       updateWatch();
     });
@@ -281,6 +293,11 @@ export default function App() {
           break;
         case 'share':
           void shareText(String(m.title ?? ''), String(m.text ?? ''), String(m.url ?? '')).catch(() => {});
+          break;
+        case 'selfUpdate':
+          void updateNow(BUILD).then((ok) => {
+            if (!ok) wantUpdate.current = true;
+          });
           break;
         case 'bar':
           setBar(barFor(typeof m.color === 'string' ? m.color : null));

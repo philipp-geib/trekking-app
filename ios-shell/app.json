@@ -81,8 +81,10 @@
       "package": "de.philippgeib.trekking.app",
       "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/splash-icon.png",
-        "backgroundColor": "#438482"
+        "foregroundImage": "./assets/android/icon-fg.png",
+        "backgroundImage": "./assets/android/icon-bg.png",
+        "monochromeImage": "./assets/android/icon-mono.png",
+        "backgroundColor": "#0d1b1b"
       },
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
@@ -93,7 +95,9 @@
         "FOREGROUND_SERVICE_LOCATION",
         "CAMERA",
         "POST_NOTIFICATIONS",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
