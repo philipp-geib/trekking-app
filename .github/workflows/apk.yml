@@ -64,6 +64,11 @@ jobs:
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           echo "$KS" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/trekking.jks"
+          # vom Handy eingetippt: Gedanken-/Geviertstriche, geschützte Leerzeichen, unsichtbare Zeichen → reines ASCII
+          KS_PASS=$(python3 -c "import os,re,unicodedata as u;p=re.sub('[\u2010-\u2015\u2212]','-',os.environ['KS_PASS']);p=u.normalize('NFKC',p);print(''.join(c for c in p if 32<ord(c)<127),end='')")
+          # iPhone schreibt gern den ersten Buchstaben groß
+          keytool -list -keystore "$RUNNER_TEMP/trekking.jks" -storepass "$KS_PASS" >/dev/null 2>&1 || KS_PASS=$(printf %s "$KS_PASS" | tr 'A-Z' 'a-z')
+          export KS_PASS
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           IN=$(ls ios-shell/android/app/build/outputs/apk/release/*.apk | head -1)
           mkdir -p "$RUNNER_TEMP/apk"
