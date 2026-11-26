@@ -165,6 +165,22 @@ function Shell() {
     if (b.length) inject(`window.__trekkingReplay && window.__trekkingReplay(${JSON.stringify(b)})`);
   }, [inject]);
 
+  /** Seite tot oder eingefroren (Nutzer 26.11.: „lange nur die Farbe, hängt“)? Beim Zurückholen ein Lebenszeichen verlangen,
+   *  ohne Antwort in 5 s neu laden. Nicht während einer Tour (die Seite verarbeitet dann evtl. gerade viele Hintergrund-Punkte). */
+  const alive = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkAlive = useCallback(() => {
+    if (!ready.current || recording.current || alive.current) return;
+    alive.current = setTimeout(() => {
+      alive.current = null;
+      if (AppState.currentState === 'active' && !recording.current) web.current?.reload();
+    }, 5000);
+    inject(`window.ReactNativeWebView && window.ReactNativeWebView.postMessage('{"type":"pong"}')`);
+  }, [inject]);
+  const reload = useCallback(() => {
+    ready.current = false;
+    web.current?.reload();
+  }, []);
+
   useEffect(() => {
     setDeliver(sendGeo);
     checkExpiry();
@@ -172,6 +188,7 @@ function Shell() {
     if (ANDROID && canInstall()) void prepare(BUILD);
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') {
+        checkAlive();
         flush();
         checkExpiry();
         planExpiryNotes();
@@ -191,7 +208,7 @@ function Shell() {
       sub.remove();
       setDeliver(null);
     };
-  }, [sendGeo, flush, updateWatch]);
+  }, [sendGeo, flush, updateWatch, checkAlive]);
 
   // App über einen Link geöffnet (Einladung): dorthin – beim Start als erste Seite, sonst in der laufenden WebView
   useEffect(() => {
@@ -247,6 +264,10 @@ function Shell() {
         return;
       }
       switch (m.type) {
+        case 'pong':
+          if (alive.current) clearTimeout(alive.current);
+          alive.current = null;
+          break;
         case 'ready':
           ready.current = true;
           flush();
@@ -360,8 +381,15 @@ function Shell() {
         onMessage={onMessage}
         onLoadStart={() => {
           ready.current = false;
+          // Seite lädt neu (z. B. automatisches Update beim Zurückholen) → kein Lebenszeichen mehr erwarten
+          if (alive.current) clearTimeout(alive.current);
+          alive.current = null;
         }}
         onError={() => setFailed(true)}
+        // System hat den Web-Prozess beendet (iOS im Hintergrund bei Speichermangel, Android-Renderer weg) → sonst bleibt nur die
+        // Hintergrundfarbe stehen, bis man die App ganz schließt (Nutzer 26.11.: „Startbildschirm sehr lange blau“)
+        onContentProcessDidTerminate={reload}
+        onRenderProcessGone={reload}
         limitsNavigationsToAppBoundDomains
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
