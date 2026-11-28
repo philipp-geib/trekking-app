@@ -142,8 +142,11 @@ function Shell() {
   }, []);
 
   const inject = useCallback((js: string) => web.current?.injectJavaScript(`${js};true;`), []);
+  // letzter Standort: nach Neuladen der Seite bzw. vor „ready“ sofort nachliefern (natives Abo meldet erst nach ≥ 3 m Bewegung)
+  const lastLoc = useRef<Loc | null>(null);
   const sendGeo = useCallback(
     (l: Loc) => {
+      lastLoc.current = l;
       if (!ready.current) return false;
       inject(`window.__trekkingGeo && window.__trekkingGeo(${JSON.stringify(l)})`);
       return true;
@@ -152,11 +155,19 @@ function Shell() {
   );
   const denied = useCallback(() => inject(`window.__trekkingGeoError && window.__trekkingGeoError(1, 'Standort nicht erlaubt')`), [inject]);
 
+  const watchRetry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** Vordergrund-Abo nur, wenn die Seite Standort will und nicht schon die Tour-Aufzeichnung liefert. */
   const updateWatch = useCallback(() => {
     const want = AppState.currentState === 'active' && watchers.current > 0 && !(recording.current && background.current);
-    void setWatch(want, (l) => void sendGeo(l), denied);
-  }, [sendGeo, denied]);
+    clearTimeout(watchRetry.current);
+    setWatch(want, (l) => void sendGeo(l), denied).catch(() => {
+      // z. B. Ortung am Handy aus (Android) – sonst wartete die Seite still; in 15 s neuer Versuch (vorher erst beim Zurückholen)
+      inject(`window.__trekkingGeoError && window.__trekkingGeoError(2, 'Ortung aus')`);
+      watchRetry.current = setTimeout(() => updateWatchRef.current(), 15_000);
+    });
+  }, [sendGeo, denied, inject]);
+  const updateWatchRef = useRef(updateWatch);
+  updateWatchRef.current = updateWatch;
 
   /** Im Hintergrund gesammelte Punkte an die Seite (erst, wenn sie bereit ist). */
   const flush = useCallback(() => {
@@ -270,6 +281,7 @@ function Shell() {
           break;
         case 'ready':
           ready.current = true;
+          if (lastLoc.current && Date.now() - lastLoc.current.timestamp < 60_000) sendGeo(lastLoc.current);
           flush();
           sendInsets();
           break;
@@ -277,10 +289,12 @@ function Shell() {
           if (m.op === 'watch') {
             watchers.current = Number(m.n) || 0;
             updateWatch();
+            if (watchers.current && lastLoc.current && Date.now() - lastLoc.current.timestamp < 60_000) sendGeo(lastLoc.current);
           } else if (m.op === 'once') {
             currentPosition()
               .then((l) => (l ? sendGeo(l) : denied()))
-              .catch(() => inject(`window.__trekkingGeoError && window.__trekkingGeoError(2, 'Kein Standort')`));
+              // 3 = noch kein Fix (ohne Netz dauert der erste Minuten) → Seite sagt „Noch kein GPS-Signal“, 2 = Ortung aus
+              .catch((e) => inject(`window.__trekkingGeoError && window.__trekkingGeoError(${e?.message === 'off' ? "2, 'Ortung aus'" : "3, 'Noch kein GPS-Signal'"})`));
           }
           break;
         case 'nav':

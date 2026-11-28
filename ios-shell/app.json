@@ -20,7 +20,7 @@
     "ios": {
       "bundleIdentifier": "de.philippgeib.trekking.app",
       "supportsTablet": false,
-      "buildNumber": "6",
+      "buildNumber": "7",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -79,7 +79,7 @@
     ],
     "android": {
       "package": "de.philippgeib.trekking.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android/icon-fg.png",
         "backgroundImage": "./assets/android/icon-bg.png",

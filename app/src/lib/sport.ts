@@ -20,8 +20,12 @@ type Info = {
 // Eigene BRouter-Profile (app/public/routing, Kopie der Standard-Profile mit milderen Kosten für große Straßen – Nutzer 21.11.:
 // lieber direkt auf der Hauptstraße als Umwege; die Farbe der Wegeart zeigt den Verkehr). planner.ts lädt sie bei Bedarf hoch,
 // klappt das nicht, gilt das Standard-Profil dahinter.
-const FOOT = 'custom_trekking-fuss-1';
-const BIKE = 'custom_trekking-rad-1';
+const FOOT = 'custom_trekking-fuss-5';
+const BIKE = 'custom_trekking-rad-4';
+// MTB (Nutzer 28.11.: ähnlich wie Wandern – Pfade gern, große Straßen meiden, Radverbot nie)
+const MTB = 'custom_trekking-mtb-3';
+// Rennrad (Nutzer 28.11.): nur Asphalt, große Straßen nur mit Radweg
+const RACE = 'custom_trekking-rennrad-4';
 
 export const SPORTS: Record<Sport, Info> = {
   wandern: { label: 'Wandern', icon: 'hiking', profiles: [FOOT, 'hiking-mountain'] },
@@ -31,9 +35,9 @@ export const SPORTS: Record<Sport, Info> = {
   klettersteig: { label: 'Klettersteig', icon: 'carabiner', profiles: [FOOT, 'hiking-mountain'], pace: 0.75 },
   laufen: { label: 'Laufen', icon: 'run', profiles: [FOOT, 'hiking-mountain'], kmh: 9, upPerHour: 700 },
   rad: { label: 'Radfahren', icon: 'bike', profiles: [BIKE, 'trekking'], kmh: 16, upPerHour: 600 },
-  mtb: { label: 'Mountainbike', icon: 'bicycle', profiles: ['mtb-zossebart', BIKE, 'trekking'], kmh: 12, upPerHour: 450 },
-  // Rennrad: Asphalt; große Straßen erlaubt (Nutzer 21.11.: Verkehr meiden machte in der Stadt große Umwege)
-  rennrad: { label: 'Rennrad', icon: 'bike-fast', profiles: ['fastbike'], kmh: 25, upPerHour: 900 },
+  mtb: { label: 'Mountainbike', icon: 'bicycle', profiles: [MTB, 'mtb-zossebart', 'trekking'], kmh: 12, upPerHour: 450 },
+  // Rennrad: Asphalt; große Straßen mit Radweg gern, ohne Radweg gemieden (Nutzer 28.11.; mild – 21.11.: Verkehr meiden machte in der Stadt große Umwege)
+  rennrad: { label: 'Rennrad', icon: 'bike-fast', profiles: [RACE, 'fastbike'], kmh: 25, upPerHour: 900 },
   // BRouter kennt keine Skirouten → Bergwander-Profil (für Pisten/freies Gelände lieber Off-Grid)
   skitour: { label: 'Skitour', icon: 'snowflake', profiles: [FOOT, 'hiking-mountain'], kmh: 5, upPerHour: 400 },
   ski: { label: 'Skiabfahrt', icon: 'ski', profiles: [FOOT, 'hiking-mountain'], kmh: 25, upPerHour: 2000 },
@@ -73,8 +77,10 @@ export const isNordic = (s?: Sport) => s === 'langlauf';
 /** Zu Fuß (Lawinenlagebericht nur, wenn auf der Route Schnee liegen könnte) */
 export const isFoot = (s?: Sport) => isHike(s) || s === 'laufen' || s === 'schneeschuh';
 
-/** Tempo als Pace (min/km) statt km/h – Laufen und Gehen (Nutzer 22./23.11.); Klettersteig nicht (Strecke sagt dort wenig) */
-export const usesPace = (s?: Sport) => s === 'wandern' || s === 'bergwandern' || s === 'laufen' || s === 'schneeschuh';
+/** Tempo als Pace (min/km) statt km/h – nur Laufen (Nutzer 27.11.: beim Wandern lieber km/h) */
+export const usesPace = (s?: Sport) => s === 'laufen';
+/** Kilometer-Ansage (Zeit je km) – zu Fuß (Wandern, Bergwandern, Laufen, Schneeschuh) */
+export const kmVoiceSport = (s?: Sport) => s === 'wandern' || s === 'bergwandern' || s === 'laufen' || s === 'schneeschuh';
 /** Zurückgelegte Strecke: „Gelaufen“ zu Fuß, sonst „Gefahren“ (Nutzer 23.11.: beim Rad stand „Gelaufen“) */
 export const movedWord = (s?: Sport) => (isFoot(s) || s === 'skitour' || s === 'langlauf' ? 'Gelaufen' : 'Gefahren');
 /** Geschätzte Zeit: „Gehzeit“ / „Laufzeit“ / „Fahrzeit“ */

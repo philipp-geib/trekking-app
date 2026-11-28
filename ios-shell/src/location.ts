@@ -116,21 +116,46 @@ export async function stopTour() {
 
 /** Normales Standort-Abo (App offen, keine Tour bzw. ohne „Immer“-Erlaubnis). */
 let watch: Location.LocationSubscription | null = null;
+let starting = false;
+let wanted = false;
 export async function setWatch(on: boolean, cb: (l: Loc) => void, onDenied: () => void) {
+  wanted = on;
   if (!on) {
     watch?.remove();
     watch = null;
     return;
   }
-  if (watch) return;
-  if ((await foregroundPermission()) !== 'granted') return onDenied();
-  if (watch) return;
-  watch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 3 }, (l) => cb(plain(l)));
+  if (watch || starting) return;
+  starting = true;
+  try {
+    if ((await foregroundPermission()) !== 'granted') return onDenied();
+    // mayShowUserSettingsDialog: false – sonst prüft Android bei ausgeschalteter „Google-Standortgenauigkeit“ erst die Einstellungen (Dialog);
+    // abgelehnt oder ohne Netz nicht prüfbar → GPS startete nie (Nutzer 28.11.: „kein GPS in den Bergen“). GPS allein reicht.
+    const w = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 3, mayShowUserSettingsDialog: false },
+      (l) => cb(plain(l)),
+    );
+    // während des Startens abbestellt (Seite weg, App im Hintergrund) → gleich wieder aus, sonst lief GPS weiter
+    if (wanted) watch = w;
+    else w.remove();
+  } finally {
+    starting = false;
+  }
 }
 
-export async function currentPosition(): Promise<Loc | null> {
-  if ((await foregroundPermission()) !== 'granted') return null;
-  const last = await Location.getLastKnownPositionAsync({ maxAge: 10_000 }).catch(() => null);
-  if (last) return plain(last);
-  return plain(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }));
+/** Einzelner Standort. null = nicht erlaubt; wirft 'off' (Ortung am Handy aus) bzw. 'nofix' (noch kein GPS-Signal).
+ *  Läuft schon eine Abfrage, warten alle darauf – ohne Netz dauert der erste Fix Minuten, die Seite fragt alle 5 s nach. */
+let once: Promise<Loc | null> | null = null;
+export function currentPosition(): Promise<Loc | null> {
+  once ??= (async () => {
+    if ((await foregroundPermission()) !== 'granted') return null;
+    const last = await Location.getLastKnownPositionAsync({ maxAge: 10_000 }).catch(() => null);
+    if (last) return plain(last);
+    try {
+      return plain(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, mayShowUserSettingsDialog: false }));
+    } catch {
+      throw new Error((await Location.hasServicesEnabledAsync().catch(() => true)) ? 'nofix' : 'off');
+    }
+  })().finally(() => (once = null));
+  return once;
 }

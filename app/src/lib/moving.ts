@@ -11,16 +11,21 @@ const MAX_REF = 30;
 
 type P = { lat: number; lng: number; time: number; seg?: boolean };
 
+/** Bezugstempo = gleitender Schnitt über etwa so lange (ms). Früher nur das letzte Stück → GPS-Zittern (Wald, 10–20 m Genauigkeit)
+ * hob den Bezug, das nächste normale Stück galt als „halb so schnell“ = Pause → Bewegungszeit 10–20 % zu kurz, Ø zu hoch (Nutzer 27.11.: 5,7 statt ~4,9 km/h). */
+const REF_WINDOW = 30_000;
+
 /**
- * Bewegungszeit (ms) von a nach b. Lücke > 5 s unter halbem eigenem Tempo davor (`ref`, m/s) zählt nur mit diesem Tempo, der Rest ist Pause;
- * gleichmäßig langsam (steil bergauf) bleibt Bewegung. Gibt den neuen Bezug mit zurück.
+ * Bewegungszeit (ms) von a nach b. Lücke > 5 s unter halbem Bezugstempo (`ref`, m/s, gleitender Schnitt) zählt nur mit diesem Tempo,
+ * der Rest ist Pause; gleichmäßig langsam (steil bergauf) bleibt Bewegung. Gibt den neuen Bezug mit zurück.
  */
 export function movingStep(a: P, b: P, ref: number): { ms: number; ref: number } {
   const dt = b.time - a.time;
   if (b.seg || dt <= 0) return { ms: 0, ref };
   const d = distance(a, b);
   const v = d / (dt / 1000);
-  if (dt <= PAUSE_GAP) return { ms: dt, ref: v <= MAX_REF ? Math.max(MIN_SPEED, v) : ref };
-  if (v >= ref / 2) return { ms: dt, ref: Math.max(MIN_SPEED, v) };
+  // am Anfang (Bezug noch Mindesttempo) gleich das erste Tempo nehmen
+  const mix = () => (v > MAX_REF ? ref : Math.max(MIN_SPEED, ref <= MIN_SPEED ? v : ref + (v - ref) * Math.min(1, dt / REF_WINDOW)));
+  if (dt <= PAUSE_GAP || v >= ref / 3) return { ms: dt, ref: mix() };
   return { ms: (d / ref) * 1000, ref };
 }

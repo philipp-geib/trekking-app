@@ -264,6 +264,11 @@ export function guideText(kind: TurnKind, side?: Side, ordinal?: number): string
   }
 }
 
+/** Symbol für einen Knick (AR: Pfeil an der nächsten Kurve) */
+export function bendIcon(angle: number) {
+  return icon(kindOf(angle), angle > 0 ? 'right' : 'left');
+}
+
 function kindOf(angle: number): TurnKind {
   const a = Math.abs(angle);
   return a > 160 ? 'uturn' : a >= 120 ? 'sharp' : a >= 55 ? 'turn' : 'slight';
@@ -306,12 +311,8 @@ export function routeBox(s: Samples, from: number, to: number, pad = 300): [numb
   return [w - dLng, so - dLat, e + dLng, n + dLat];
 }
 
-/**
- * Nächster Hinweis ab `along`. `roads` = Wege aus den Kacheln (leer = unbekannt) bzw. vorbereitet (indexRoads; Knicke außerhalb
- * seines Abschnitts gelten als „ohne Kacheln“).
- * Schaut höchstens `range` m voraus; sonst „Geradeaus“ bzw. „Ziel“.
- */
-export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadIndex, along: number, length: number, range = 5000): Guide {
+/** Knicke ab `along` als Hinweise (ohne Ziel/Geradeaus); Zählung „2. Abzweigung“ ab dem vorigen Hinweis. */
+function* guidesFrom(s: Samples, bends: Bend[], roads: LatLng[][] | RoadIndex, along: number, range: number): Generator<Guide> {
   const idx = Array.isArray(roads) ? null : roads;
   const list = idx ? idx.roads : (roads as LatLng[][]);
   const covered = (b: Bend) => {
@@ -322,6 +323,7 @@ export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadInd
     if (v === undefined) idx.cover.set(b.along, (v = roadsCover(list, b.at)));
     return v;
   };
+  let from = along;
   for (const b of bends) {
     if (b.along <= along + 3) continue;
     if (b.along > along + range) break;
@@ -329,7 +331,7 @@ export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadInd
     let kind: TurnKind | null = null;
     let ordinal: number | undefined;
     if (covered(b)) {
-      const branches = idx ? once(collect(s, idx.touches, idx.grid, along, b.along + 20, idx.memo)) : findBranches(s, list, along, b.along + 20);
+      const branches = idx ? once(collect(s, idx.touches, idx.grid, from, b.along + 20, idx.memo)) : findBranches(s, list, from, b.along + 20);
       const junction = branches.some((x) => Math.abs(x.along - b.along) <= 20);
       if (junction) {
         kind = kindOf(b.angle);
@@ -338,11 +340,34 @@ export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadInd
     } else if (Math.abs(b.angle) >= 55) kind = kindOf(b.angle);
     if (!kind) continue;
     const ord = kind === 'curve' || kind === 'uturn' ? undefined : ordinal;
-    return { kind, side, ordinal: ord, dist: b.along - along, along: b.along, text: guideText(kind, side, ord), icon: icon(kind, side) };
+    yield { kind, side, ordinal: ord, dist: b.along - along, along: b.along, text: guideText(kind, side, ord), icon: icon(kind, side) };
+    from = b.along + 12;
   }
+}
+
+const finish = (along: number, length: number): Guide => ({ kind: 'finish', dist: length - along, along: length, text: 'Ziel', icon: icon('finish') });
+
+/**
+ * Nächster Hinweis ab `along`. `roads` = Wege aus den Kacheln (leer = unbekannt) bzw. vorbereitet (indexRoads; Knicke außerhalb
+ * seines Abschnitts gelten als „ohne Kacheln“).
+ * Schaut höchstens `range` m voraus; sonst „Geradeaus“ bzw. „Ziel“.
+ */
+export function nextGuide(s: Samples, bends: Bend[], roads: LatLng[][] | RoadIndex, along: number, length: number, range = 5000): Guide {
+  for (const g of guidesFrom(s, bends, roads, along, range)) return g;
   const toEnd = length - along;
-  if (toEnd <= range) return { kind: 'finish', dist: toEnd, along: length, text: 'Ziel', icon: icon('finish') };
+  if (toEnd <= range) return finish(along, length);
   return { kind: 'straight', dist: Math.min(range, toEnd), along: along + range, text: 'Der Tour folgen', icon: icon('straight') };
+}
+
+/** Alle Hinweise bis zum Ziel (Liste beim Antippen des Abbiegehinweises, wie Google Maps), höchstens `max`, letzter = Ziel. */
+export function upcomingGuides(s: Samples, bends: Bend[], roads: LatLng[][] | RoadIndex, along: number, length: number, max = 300): Guide[] {
+  const out: Guide[] = [];
+  for (const g of guidesFrom(s, bends, roads, along, Infinity)) {
+    out.push(g);
+    if (out.length >= max) return out;
+  }
+  out.push(finish(along, length));
+  return out;
 }
 
 /** Für die Sprachansage: „350 m“ → „350 Metern“, „2,1 km“ → „2,1 Kilometern“ */
